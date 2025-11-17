@@ -1,12 +1,12 @@
 package org.jabref.gui.fieldeditors;
 
 import java.util.Collection;
+import java.time.Duration;
 
 import javax.swing.undo.UndoManager;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
-import javafx.util.Duration;
 
 import org.jabref.gui.AbstractViewModel;
 import org.jabref.gui.autocompleter.SuggestionProvider;
@@ -17,6 +17,7 @@ import org.jabref.logic.integrity.ValueChecker;
 import org.jabref.model.entry.BibEntry;
 import org.jabref.model.entry.field.Field;
 
+import com.tobiasdiez.easybind.EasyBind;
 import com.tobiasdiez.easybind.EasyObservableValue;
 import com.tobiasdiez.easybind.Subscription;
 import de.saxsys.mvvmfx.utils.validation.CompositeValidator;
