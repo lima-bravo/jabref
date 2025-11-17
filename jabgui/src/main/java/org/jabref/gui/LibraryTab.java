@@ -1128,6 +1128,9 @@ public class LibraryTab extends Tab implements CommandSelectionTab {
 
         @Subscribe
         public void listen(FieldChangedEvent fieldChangedEvent) {
+            if (fieldChangedEvent.isFilteredOut()) { // JLB
+                return; // Skip minor changes
+            }
             indexManager.updateEntry(fieldChangedEvent);
         }
     }
