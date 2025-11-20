@@ -18,6 +18,8 @@ import org.slf4j.LoggerFactory;
  * We make sure that the width of all columns sums up to the total width of the table.
  * However, in contrast to {@link TableView#CONSTRAINED_RESIZE_POLICY} we size the columns initially by their preferred width.
  * Although {@link TableView#CONSTRAINED_RESIZE_POLICY} is deprecated, this policy maintains a similar resizing behavior.
+ * 
+ * This policy allows manual column resizing while still maintaining auto-fit behavior when the table is resized.
  */
 public class SmartConstrainedResizePolicy implements Callback<TableView.ResizeFeatures, Boolean> {
 
@@ -26,9 +28,56 @@ public class SmartConstrainedResizePolicy implements Callback<TableView.ResizeFe
     @Override
     public Boolean call(TableView.ResizeFeatures prop) {
         if (prop.getColumn() == null) {
+            // Table was resized - auto-fit columns
             return initColumnSize(prop.getTable());
         } else {
+            // Column is being resized
+            TableColumnBase<?, ?> column = prop.getColumn();
+            
+            // If column is not resizable, don't allow resize
+            if (!column.isResizable()) {
+                return true; // Handled (prevent resize)
+            }
+            
+            // For resizable columns, allow manual resizing by returning false
+            // This lets JavaFX handle the resize normally
+            // The constrained behavior will kick in on the next table resize
+            return false;
+        }
+    }
+
+    /**
+     * Handles manual user resizing of a column.
+     * Allows the resize but adjusts other columns to maintain total width.
+     */
+    private Boolean handleManualResize(TableView.ResizeFeatures<?> prop) {
+        TableView<?> table = prop.getTable();
+        TableColumnBase<?, ?> resizedColumn = prop.getColumn();
+        double delta = prop.getDelta();
+        
+        List<? extends TableColumnBase<?, ?>> visibleLeafColumns = table.getVisibleLeafColumns();
+        double tableWidth = getContentWidth(table);
+        
+        // Calculate current total width
+        double currentTotalWidth = visibleLeafColumns.stream()
+                .mapToDouble(TableColumnBase::getWidth)
+                .sum();
+        
+        // Calculate new total width after resize
+        double newTotalWidth = currentTotalWidth + delta;
+        
+        // If the new total would exceed table width, we need to constrain
+        if (newTotalWidth > tableWidth) {
+            // Use constrained resize to maintain table width
             return constrainedResize(prop);
+        } else if (newTotalWidth < tableWidth) {
+            // Table is wider than columns - expand last column or distribute
+            // For now, allow the resize and let the next automatic resize handle it
+            // Return false to allow default JavaFX resizing behavior
+            return false;
+        } else {
+            // Perfect fit - allow the resize
+            return false;
         }
     }
 
