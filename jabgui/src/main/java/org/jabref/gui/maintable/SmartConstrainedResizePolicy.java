@@ -5,7 +5,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import javafx.scene.control.ResizeFeaturesBase;
 import javafx.scene.control.TableColumnBase;
 import javafx.scene.control.TableView;
 import javafx.util.Callback;
@@ -31,7 +30,7 @@ public class SmartConstrainedResizePolicy implements Callback<TableView.ResizeFe
             // Table was resized - auto-fit columns
             return initColumnSize(prop.getTable());
         } else {
-            // Column is being resized
+            // Column is being resized manually
             TableColumnBase<?, ?> column = prop.getColumn();
             
             // If column is not resizable, don't allow resize
@@ -40,43 +39,8 @@ public class SmartConstrainedResizePolicy implements Callback<TableView.ResizeFe
             }
             
             // For resizable columns, allow manual resizing by returning false
-            // This lets JavaFX handle the resize normally
+            // This lets JavaFX handle the resize normally using default behavior
             // The constrained behavior will kick in on the next table resize
-            return false;
-        }
-    }
-
-    /**
-     * Handles manual user resizing of a column.
-     * Allows the resize but adjusts other columns to maintain total width.
-     */
-    private Boolean handleManualResize(TableView.ResizeFeatures<?> prop) {
-        TableView<?> table = prop.getTable();
-        TableColumnBase<?, ?> resizedColumn = prop.getColumn();
-        double delta = prop.getDelta();
-        
-        List<? extends TableColumnBase<?, ?>> visibleLeafColumns = table.getVisibleLeafColumns();
-        double tableWidth = getContentWidth(table);
-        
-        // Calculate current total width
-        double currentTotalWidth = visibleLeafColumns.stream()
-                .mapToDouble(TableColumnBase::getWidth)
-                .sum();
-        
-        // Calculate new total width after resize
-        double newTotalWidth = currentTotalWidth + delta;
-        
-        // If the new total would exceed table width, we need to constrain
-        if (newTotalWidth > tableWidth) {
-            // Use constrained resize to maintain table width
-            return constrainedResize(prop);
-        } else if (newTotalWidth < tableWidth) {
-            // Table is wider than columns - expand last column or distribute
-            // For now, allow the resize and let the next automatic resize handle it
-            // Return false to allow default JavaFX resizing behavior
-            return false;
-        } else {
-            // Perfect fit - allow the resize
             return false;
         }
     }
@@ -114,35 +78,13 @@ public class SmartConstrainedResizePolicy implements Callback<TableView.ResizeFe
         try {
             // TODO: reflective access, should be removed
             Class<?> clazz = Class.forName("javafx.scene.control.TableUtil");
-            Method constrainedResize = clazz.getDeclaredMethod("resize", TableColumnBase.class, double.class);
-            constrainedResize.setAccessible(true);
-            constrainedResize.invoke(null, column, delta);
+            Method resizeMethod = clazz.getDeclaredMethod("resize", TableColumnBase.class, double.class);
+            resizeMethod.setAccessible(true);
+            resizeMethod.invoke(null, column, delta);
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
             LOGGER.error("Could not invoke resize in TableUtil", e);
-        }
-    }
-
-    private Boolean constrainedResize(TableView.ResizeFeatures<?> prop) {
-        TableView<?> table = prop.getTable();
-        List<? extends TableColumnBase<?, ?>> visibleLeafColumns = table.getVisibleLeafColumns();
-        return constrainedResize(prop,
-                false,
-                getContentWidth(table) - 2,
-                visibleLeafColumns);
-    }
-
-    private Boolean constrainedResize(TableView.ResizeFeatures<?> prop, Boolean isFirstRun, Double contentWidth, List<? extends TableColumnBase<?, ?>> visibleLeafColumns) {
-        // We have to use reflection since TableUtil is not visible to us
-        try {
-            // TODO: reflective access, should be removed
-            Class<?> clazz = Class.forName("javafx.scene.control.TableUtil");
-            Method constrainedResize = clazz.getDeclaredMethod("constrainedResize", ResizeFeaturesBase.class, Boolean.TYPE, Double.TYPE, List.class);
-            constrainedResize.setAccessible(true);
-            Object returnValue = constrainedResize.invoke(null, prop, isFirstRun, contentWidth, visibleLeafColumns);
-            return (Boolean) returnValue;
-        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
-            LOGGER.error("Could not invoke constrainedResize in TableUtil", e);
-            return false;
+            // Fallback: directly set the width if reflection fails
+            column.setPrefWidth(column.getWidth() + delta);
         }
     }
 
@@ -153,7 +95,8 @@ public class SmartConstrainedResizePolicy implements Callback<TableView.ResizeFe
             privateStringField.setAccessible(true);
             return (Double) privateStringField.get(table);
         } catch (IllegalAccessException | NoSuchFieldException e) {
-            return 0d;
+            // Fallback: use visible width if reflection fails
+            return table.getWidth();
         }
     }
 }
